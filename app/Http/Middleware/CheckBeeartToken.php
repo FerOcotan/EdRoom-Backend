@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\SessionToken;
 
 class CheckBeeartToken
@@ -22,7 +23,8 @@ class CheckBeeartToken
             '/api/register',
         ];
 
-        $path = $request->getPathInfo();
+    $path = $request->getPathInfo();
+    Log::debug('[CheckBeeartToken] incoming path: ' . $path);
         if (in_array($path, $public, true)) {
             return $next($request);
         }
@@ -41,10 +43,12 @@ class CheckBeeartToken
                 $token = $authHeader;
             }
         }
-
         if (empty($token)) {
+            Log::debug('[CheckBeeartToken] no token provided for path: ' . $path);
             return response()->json(['message' => 'Token de sesión requerido'], 401);
         }
+
+        Log::debug('[CheckBeeartToken] token provided: ' . substr($token, 0, 8) . '... for path: ' . $path);
 
         $record = SessionToken::where('token', $token)
             ->where(function ($q) {
@@ -52,8 +56,11 @@ class CheckBeeartToken
             })->first();
 
         if (!$record) {
+            Log::debug('[CheckBeeartToken] token not found or expired: ' . substr($token, 0, 8) . '...');
             return response()->json(['message' => 'Token inválido o expirado'], 401);
         }
+
+        Log::debug('[CheckBeeartToken] token valid, user_id=' . ($record->user_id ?? 'null'));
 
         // Optionally set the current user on the request
         if ($record->user_id) {
