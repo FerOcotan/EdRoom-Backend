@@ -50,7 +50,7 @@ class CheckBeeartToken
 
         Log::debug('[CheckBeeartToken] token provided: ' . substr($token, 0, 8) . '... for path: ' . $path);
 
-        $record = SessionToken::where('token', $token)
+        $record = SessionToken::where('token_hash', $token)
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })->first();

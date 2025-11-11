@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -24,7 +25,7 @@ class session_tokens extends Model
     // Campos que se pueden asignar masivamente
     protected $fillable = [
         'user_id',
-        'token',
+        'token_hash',
         'expires_at',
     ];
 

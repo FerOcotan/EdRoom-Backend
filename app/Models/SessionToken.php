@@ -10,7 +10,7 @@ class SessionToken extends Model
 
     protected $fillable = [
         'user_id',
-        'token',
+        'token_hash',
         'expires_at',
     ];
 
