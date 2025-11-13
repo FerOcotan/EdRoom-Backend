@@ -17,17 +17,39 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-
-        // Seed estados y roles (idempotentes)
+        // Seed estados y roles (idempotentes) primero
         $this->call([
             EstadoSeeder::class,
             RolSeeder::class,
+        ]);
+
+        // Crear usuario de prueba asegurando idrol e idestado válidos
+        $idRolAdmin = \Illuminate\Support\Facades\DB::table('rol')->where('nombre', 'Administrador')->value('idrol') ?: 1;
+        $idEstadoActivo = \Illuminate\Support\Facades\DB::table('estado')->where('estado', 'Activo')->value('idestado') ?: 8;
+
+        // Crear o actualizar usuario de prueba de forma idempotente
+        \App\Models\User::updateOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'email_verified_at' => now(),
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'remember_token' => substr(bin2hex(random_bytes(5)), 0, 10),
+                'idrol' => $idRolAdmin,
+                'idestado' => $idEstadoActivo,
+            ]
+        );
+
+        // Luego el resto de usuarios (docentes y estudiantes)
+        $this->call([
+            UsersSeeder::class,
+        ]);
+
+        // Crear cursos, clases y solicitudes de estudiantes
+        $this->call([
+            CursoSeeder::class,
+            ClaseSeeder::class,
+            SoliEstudianteSeeder::class,
         ]);
     }
 }

@@ -68,7 +68,12 @@ class AuthTokenController extends Controller
         return response()->json([
             'token' => $token,
             'expires_at' => $expires->toDateTimeString(),
-            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'idrol' => $user->idrol ?? null,
+            ],
         ]);
     }
 
@@ -199,7 +204,12 @@ class AuthTokenController extends Controller
         return response()->json([
             'token' => $token,
             'expires_at' => $expires->toDateTimeString(),
-            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'idrol' => $user->idrol ?? $idrol ?? null,
+            ],
         ], 201);
     }
 }
