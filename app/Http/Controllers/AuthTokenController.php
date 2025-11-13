@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use App\Models\User;
@@ -25,6 +26,34 @@ class AuthTokenController extends Controller
         $user = User::where('email', $data['email'])->first();
         if (!$user || !Hash::check($data['password'], $user->password)) {
             return response()->json(['message' => 'Credenciales inválidas'], 401);
+        }
+
+        // Opción A: eliminar otras sesiones activas del mismo usuario en la tabla `sessions`.
+        // Si la aplicación usa SESSION_DRIVER=database, Laravel guarda sesiones en la tabla `sessions`
+        // y la columna `user_id` se rellena cuando el usuario está autenticado.
+        try {
+            $currentSessionId = session()->getId();
+        } catch (\Throwable $e) {
+            $currentSessionId = null;
+        }
+
+        if ($currentSessionId) {
+            DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $currentSessionId)
+                ->delete();
+        } else {
+            // Si no hay id de sesión (por ejemplo, autenticación vía API sin sesión),
+            // borramos todas las sesiones asociadas al usuario para garantizar que
+            // no existan otras sesiones activas con esa cuenta.
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        }
+
+        // Eliminar tokens previos para este usuario (garantizar 1 sesión/token activo)
+        try {
+            SessionToken::where('user_id', $user->id)->delete();
+        } catch (\Throwable $e) {
+            // ignore if table not present or other error; continue to create token
         }
 
         $token = bin2hex(random_bytes(32));
@@ -53,7 +82,7 @@ class AuthTokenController extends Controller
         }
 
         if ($token) {
-            SessionToken::where('token', $token)->delete();
+            SessionToken::where('token_hash', $token)->delete();
         }
 
         return response()->json(['message' => 'Sesión finalizada']);
@@ -140,6 +169,22 @@ class AuthTokenController extends Controller
             'idrol' => $idrol,
             'idestado' => $idestado,
         ]);
+
+        // Opción A: eliminar otras sesiones activas del mismo usuario en la tabla `sessions`.
+        try {
+            $currentSessionId = session()->getId();
+        } catch (\Throwable $e) {
+            $currentSessionId = null;
+        }
+
+        if ($currentSessionId) {
+            DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $currentSessionId)
+                ->delete();
+        } else {
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        }
 
         // Crear token inicial igual que en login
         $token = bin2hex(random_bytes(32));
