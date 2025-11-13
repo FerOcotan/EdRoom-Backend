@@ -42,4 +42,30 @@ class UserController extends Controller
 
         return response()->json(['id' => $user->id, 'name' => $user->name, 'email' => $user->email]);
     }
+
+    /**
+     * Devolver el perfil del usuario autenticado.
+     * Mover aquí la lógica que antes vivía en routes/web.php para mantener controladores limpios.
+     */
+    public function me(Request $request)
+    {
+        $userId = $request->attributes->get('beeart_user_id');
+        if (!$userId) {
+            return response()->json(['message' => 'No autenticado'], 401);
+        }
+        $user = User::find($userId);
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        // Aseguramos que idrol se exponga y convierta a entero si existe
+        $idrol = $user->idrol !== null ? (int) $user->idrol : null;
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'idrol' => $idrol,
+        ]);
+    }
 }
