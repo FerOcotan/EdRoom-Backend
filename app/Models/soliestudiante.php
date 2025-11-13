@@ -3,34 +3,35 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class clase extends Model
+class soliestudiante extends Model
 {
-    // Modelo para la tabla `clase` (ver migration)
-    protected $table = 'clase';
-    protected $primaryKey = 'idclase';
+    use HasFactory;
+
+    protected $table = 'soliestudiante';
+    protected $primaryKey = 'idsoliestudiante';
     public $timestamps = false;
 
     protected $fillable = [
+        'idestudiante',
         'idcurso',
-        'tema',
-        'fechahorainicio',
-        'fechahorafinal',
-        'url',
+        'fecha',
         'idestado',
     ];
 
     protected $casts = [
-        'idclase' => 'integer',
+        'idsoliestudiante' => 'integer',
+        'idestudiante' => 'integer',
         'idcurso' => 'integer',
-        'tema' => 'string',
-        'fechahorainicio' => 'datetime',
-        'fechahorafinal' => 'datetime',
-        'url' => 'string',
+        'fecha' => 'datetime',
         'idestado' => 'integer',
     ];
 
-    // Relaciones
+    public function estudiante() {
+        return $this->belongsTo(User::class, 'idestudiante', 'id');
+    }
+
     public function curso() {
         return $this->belongsTo(curso::class, 'idcurso', 'idcurso');
     }
