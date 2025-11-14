@@ -11,7 +11,7 @@ class CursoController extends Controller
         try {
             // Obtener id del docente desde query param `idusuario` o usar 15 por defecto
             $idusuario = $req->query('idusuario', 15);
-            
+
             $cursos = curso::with(['user','estado','clases'])
                 ->where('idusuario', $idusuario)
                 ->orderBy('idcurso', 'asc')
@@ -38,9 +38,11 @@ class CursoController extends Controller
     public function store(Request $req) {
         $data = $req->validate([
             'idusuario' => 'required|integer',
-            'nombre' => 'required|string|max:50',
+            // nombre: permitir dígitos pero debe ser único por nombre de curso
+            'nombre' => ['required','string','max:50','unique:curso,nombre'],
             'descripcion' => 'nullable|string|max:100',
-            'maximoest' => 'required|integer',
+            // máximo estudiantes: entero entre 1 y 45
+            'maximoest' => 'required|integer|min:1|max:45',
             'estuinscritos' => 'nullable|integer',
             'idestado' => 'required|integer',
         ]);
@@ -52,10 +54,25 @@ class CursoController extends Controller
     public function update(Request $req, $id) {
         $c = curso::where('idcurso', $id)->first();
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
-        $data = $req->only(['nombre','descripcion','maximoest','estuinscritos','idestado']);
-        $c->fill($data);
-        $c->save();
-        return response()->json($c);
+        // Validar datos para evitar errores de base de datos (p. ej. texto demasiado largo)
+        // Cuando actualizamos, permitimos el mismo nombre para el registro actual
+        $validated = $req->validate([
+            'nombre' => ['sometimes','required','string','max:50',"unique:curso,nombre,{$id},idcurso"],
+            'descripcion' => 'nullable|string|max:100',
+            'maximoest' => ['sometimes','required','integer','min:1','max:45'],
+            'estuinscritos' => 'nullable|integer',
+            'idestado' => ['sometimes','required','integer'],
+        ]);
+
+        try {
+            $c->fill($validated);
+            $c->save();
+            return response()->json($c);
+        } catch (\Exception $e) {
+            // Registrar error en storage/logs para diagnóstico y devolver JSON claro
+            \Illuminate\Support\Facades\Log::error('[CursoController@update] Error saving curso: ' . $e->getMessage());
+            return response()->json(['message' => 'Error al actualizar curso', 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function destroy($id) {
