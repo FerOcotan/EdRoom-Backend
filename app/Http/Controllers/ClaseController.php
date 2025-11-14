@@ -9,7 +9,25 @@ class ClaseController extends Controller
 {
     public function index() {
         try {
-            return response()->json(clase::with(['curso','estado'])->get());
+            $req = request();
+            $query = clase::with(['curso','estado']);
+
+            // Si pasan ?curso=ID, filtrar por ese curso
+            $cursoId = $req->query('curso');
+            if ($cursoId) {
+                $query->where('idcurso', $cursoId);
+            }
+
+            // Si el middleware adjunta beeart_user_id, limitar a cursos del docente
+            $beeartUserId = $req->attributes->get('beeart_user_id');
+            if ($beeartUserId) {
+                $query->whereHas('curso', function($q) use ($beeartUserId) {
+                    $q->where('idusuario', $beeartUserId);
+                });
+            }
+
+            $results = $query->get();
+            return response()->json($results);
         } catch (\Exception $e) {
             return response()->json([], 200);
         }
