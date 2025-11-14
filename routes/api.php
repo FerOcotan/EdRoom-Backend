@@ -6,6 +6,7 @@ use App\Http\Controllers\ClaseController;
 use App\Http\Controllers\SoliEstudianteController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\EstadoController;
+use App\Http\Controllers\DailyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,4 +59,9 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
     Route::post('estados', [EstadoController::class, 'store']);
     Route::patch('estados/{id}', [EstadoController::class, 'update']);
     Route::delete('estados/{id}', [EstadoController::class, 'destroy']);
+
+    // Daily (crear salas)
+    Route::post('daily/rooms', [DailyController::class, 'store']);
+    // Daily: crear meeting token para unirse como owner/participant
+    Route::post('daily/tokens', [DailyController::class, 'createToken']);
 });
