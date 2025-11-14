@@ -128,4 +128,64 @@ class SoliEstudianteController extends Controller
             return response()->json([], 200);
         }
     }
+
+    /**
+     * Devuelve los cursos a los que un estudiante está aprobado (idestado aprobado).
+     * Ruta sugerida: GET /api/soliestudiantes/estudiante/{id}
+     * Se puede forzar idestado vía query param ?idestado=6 o ?idestado=6,7
+     */
+    public function cursosByEstudiante(Request $request, $idestudiante) {
+        try {
+            // Allow override via query param ?idestado=6 or ?idestado=6,7
+            $qIdEstado = $request->query('idestado');
+            if ($qIdEstado) {
+                $ids = array_filter(array_map('intval', explode(',', $qIdEstado)));
+                $candidates = array_values(array_unique($ids));
+            } else {
+                // Default approved id
+                $explicitApproved = 6;
+
+                // Heuristic search of estado names
+                $found = estado::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
+                    ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
+                    ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
+                    ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
+                    ->pluck('idestado')
+                    ->toArray();
+
+                $candidates = $found;
+                if (!in_array($explicitApproved, $candidates)) {
+                    $candidates[] = $explicitApproved;
+                }
+                $candidates = array_values(array_unique(array_map('intval', $candidates)));
+            }
+
+            if (empty($candidates)) {
+                return response()->json([]);
+            }
+
+            // Obtener solicitudes del estudiante filtradas por estados aprobados
+            $rows = soliestudiante::with(['curso','estado'])
+                ->where('idestudiante', $idestudiante)
+                ->whereIn('idestado', $candidates)
+                ->get();
+
+            // Mapear a lista de cursos (mantener algunos campos útiles)
+            $list = $rows->map(function($s) {
+                $c = $s->curso ?? null;
+                if (!$c) return null;
+                return [
+                    'id' => $c->idcurso ?? $c->id ?? null,
+                    'nombre' => $c->nombre ?? $c->title ?? null,
+                    'descripcion' => $c->descripcion ?? null,
+                    'raw' => $c,
+                    'estado' => $s->estado ?? null,
+                ];
+            })->filter()->values();
+
+            return response()->json($list);
+        } catch (\Exception $e) {
+            return response()->json([], 200);
+        }
+    }
 }

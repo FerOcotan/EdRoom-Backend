@@ -45,6 +45,8 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
 
     // Inscritos (estudiantes aprobados) por curso
     Route::get('cursos/{id}/inscritos', [SoliEstudianteController::class, 'inscritosByCurso']);
+    // Cursos aprobados por estudiante (solicitudes aprobadas)
+    Route::get('soliestudiantes/estudiante/{id}', [SoliEstudianteController::class, 'cursosByEstudiante']);
 
     // Roles
     Route::get('roles', [RolController::class, 'index']);
