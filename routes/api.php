@@ -42,6 +42,9 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
     Route::patch('soliestudiantes/{id}', [SoliEstudianteController::class, 'update']);
     Route::delete('soliestudiantes/{id}', [SoliEstudianteController::class, 'destroy']);
 
+    // Inscritos (estudiantes aprobados) por curso
+    Route::get('cursos/{id}/inscritos', [SoliEstudianteController::class, 'inscritosByCurso']);
+
     // Roles
     Route::get('roles', [RolController::class, 'index']);
     Route::get('roles/{id}', [RolController::class, 'show']);
