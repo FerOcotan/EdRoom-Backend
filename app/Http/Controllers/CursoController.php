@@ -7,9 +7,18 @@ use Illuminate\Http\Request;
 
 class CursoController extends Controller
 {
-    public function index() {
+    public function index(Request $req) {
         try {
-            return response()->json(curso::with(['user','estado','clases'])->get());
+            // Obtener id del docente desde query param `idusuario` o usar 15 por defecto
+            $idusuario = $req->query('idusuario', 15);
+            
+            $cursos = curso::with(['user','estado','clases'])
+                ->where('idusuario', $idusuario)
+                ->orderBy('idcurso', 'asc')
+                ->limit(10)
+                ->get();
+
+            return response()->json($cursos);
         } catch (\Exception $e) {
             // Si DB no está disponible en el entorno de pruebas, devolver array vacío
             return response()->json([], 200);

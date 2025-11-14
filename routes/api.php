@@ -28,6 +28,7 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
     Route::delete('cursos/{id}', [CursoController::class, 'destroy']);
 
     // Clases
+    Route::get('clases/next', [ClaseController::class, 'next']);
     Route::get('clases', [ClaseController::class, 'index']);
     Route::get('clases/{id}', [ClaseController::class, 'show']);
     Route::post('clases', [ClaseController::class, 'store']);
