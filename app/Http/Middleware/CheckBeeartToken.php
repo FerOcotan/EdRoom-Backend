@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\SessionToken;
 
 class CheckBeeartToken
-{
+{       
     /**
      * Handle an incoming request.
      * Require a valid token for protected API routes.

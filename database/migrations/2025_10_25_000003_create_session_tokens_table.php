@@ -11,7 +11,6 @@ return new class() extends Migration
         Schema::create('session_tokens', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
-            $table->string('token')->unique();
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
