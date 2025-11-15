@@ -45,6 +45,20 @@ class SoliEstudianteController extends Controller
             'idestado' => 'required|integer',
         ]);
 
+        // Evitar duplicados: si ya existe una solicitud para el mismo estudiante+curso
+        // en estado En Espera(5), Aprobado(6) o Denegado(7), devolver 409
+        try {
+            $existing = soliestudiante::where('idestudiante', $data['idestudiante'])
+                ->where('idcurso', $data['idcurso'])
+                ->whereIn('idestado', [5,6,7])
+                ->first();
+            if ($existing) {
+                return response()->json(['message' => 'Ya existe una solicitud previa para este curso', 'existing' => $existing], 409);
+            }
+        } catch (\Exception $e) {
+            // seguir adelante si la comprobación falla por alguna razón inesperada
+        }
+
         $s = soliestudiante::create($data);
         return response()->json($s, 201);
     }
@@ -63,6 +77,25 @@ class SoliEstudianteController extends Controller
         if (!$s) return response()->json(['message' => 'No encontrado'], 404);
         $s->delete();
         return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * Devuelve las solicitudes asociadas al estudiante identificado por el token.
+     * Ruta: GET /api/soliestudiantes/mine
+     */
+    public function mine(Request $request) {
+        try {
+            $beeartUserId = $request->attributes->get('beeart_user_id');
+            if (!$beeartUserId) return response()->json(['message' => 'Token de sesión requerido'], 401);
+
+            $rows = soliestudiante::with(['estudiante','curso','estado'])
+                ->where('idestudiante', $beeartUserId)
+                ->get();
+
+            return response()->json($rows);
+        } catch (\Exception $e) {
+            return response()->json([], 200);
+        }
     }
 
     /**

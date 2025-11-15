@@ -19,8 +19,11 @@ class ClaseController extends Controller
             }
 
             // Si el middleware adjunta beeart_user_id, limitar a cursos del docente
+            // pero sólo cuando NO se solicitó explícitamente `?curso=ID`.
+            // Esto permite que estudiantes autenticados consulten las clases de
+            // un curso específico sin que se aplique el filtro por owner.
             $beeartUserId = $req->attributes->get('beeart_user_id');
-            if ($beeartUserId) {
+            if ($beeartUserId && empty($cursoId)) {
                 $query->whereHas('curso', function($q) use ($beeartUserId) {
                     $q->where('idusuario', $beeartUserId);
                 });

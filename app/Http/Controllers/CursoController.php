@@ -9,11 +9,30 @@ class CursoController extends Controller
 {
     public function index(Request $req) {
         try {
+            // Si se solicita `all=1` o `global=1`, devolver todos los cursos sin filtrar
+            $all = $req->query('all', $req->query('global', null));
+            if ((string)$all === '1') {
+                // Devolver todos los cursos excepto aquellos cuyo estado contenga 'inactiv'
+                $cursos = curso::with(['user','estado','clases'])
+                    ->where(function($q) {
+                        // incluir cursos que no tienen idestado o cuyo idestado no es 9 (Inactivo)
+                        $q->whereNull('idestado')
+                          ->orWhere('idestado', '!=', 9);
+                    })
+                    ->orderBy('idcurso', 'asc')
+                    ->get();
+                return response()->json($cursos);
+            }
+
             // Obtener id del docente desde query param `idusuario` o usar 15 por defecto
             $idusuario = $req->query('idusuario', 15);
 
             $cursos = curso::with(['user','estado','clases'])
                 ->where('idusuario', $idusuario)
+                ->where(function($q) {
+                    $q->whereNull('idestado')
+                      ->orWhere('idestado', '!=', 9);
+                })
                 ->orderBy('idcurso', 'asc')
                 ->limit(10)
                 ->get();

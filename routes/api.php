@@ -38,6 +38,8 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
 
     // Solicitudes de estudiante
     Route::get('soliestudiantes', [SoliEstudianteController::class, 'index']);
+    // Obtener solicitudes del estudiante autenticado (id del token)
+    Route::get('soliestudiantes/mine', [SoliEstudianteController::class, 'mine']);
     Route::get('soliestudiantes/{id}', [SoliEstudianteController::class, 'show']);
     Route::post('soliestudiantes', [SoliEstudianteController::class, 'store']);
     Route::patch('soliestudiantes/{id}', [SoliEstudianteController::class, 'update']);
