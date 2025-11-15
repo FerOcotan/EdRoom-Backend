@@ -6,6 +6,9 @@ use App\Http\Controllers\AuthTokenController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use App\Models\SessionToken;
+// Middlewares
+use App\Http\Middleware\CheckBeeartToken;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 
 Route::get('/', function () {
     return view('welcome');
@@ -33,3 +36,6 @@ Route::patch('/api/me', [UserController::class, 'update'])
 // Endpoint para obtener el perfil del usuario autenticado (delegado a UserController::me)
 Route::get('/api/me', [UserController::class, 'me'])
     ->middleware(\App\Http\Middleware\CheckBeeartToken::class);
+/** ---------- NUEVO: SOLICITUD DE INGRESO A CLASE (MAILTRAP) ---------- */
+Route::post('/api/classes/{id}/join-request', [ClassJoinController::class, 'store'])
+    ->withoutMiddleware(VerifyCsrfToken::class);

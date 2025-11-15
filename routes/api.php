@@ -7,6 +7,7 @@ use App\Http\Controllers\SoliEstudianteController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\DailyController;
+use App\Http\Controllers\ClassJoinController; // 👈 IMPORTANTE
 
 /*
 |--------------------------------------------------------------------------
@@ -74,4 +75,7 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
         Route::get('users/{id}', [\App\Http\Controllers\UserController::class, 'show']);
         Route::patch('users/{id}', [\App\Http\Controllers\UserController::class, 'updateUser']);
         Route::delete('users/{id}', [\App\Http\Controllers\UserController::class, 'destroy']);
+        //Correo
+    Route::post('/classes/{classId}/join-request', [ClassJoinController::class, 'store']);
+
 });
