@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\clase;
+use App\Models\soliestudiante;
+use App\Models\estado as EstadoModel;
 use Illuminate\Http\Request;
 
 class ClaseController extends Controller
@@ -50,15 +52,61 @@ class ClaseController extends Controller
             }
 
             $now = now();
+            // Determinar cursos relevantes para este usuario:
+            // - si es docente (owner) devolver sus cursos
+            // - además, incluir cursos donde el usuario está inscrito/aprobado
+
+            // Cursos donde es docente
+            $docenteCursoIds = \App\Models\curso::where('idusuario', $userId)->pluck('idcurso')->toArray();
+
+            // Cursos donde es estudiante aprobado (usar misma heurística de estados que en SoliEstudianteController)
+            $explicitApproved = 6;
+            $found = EstadoModel::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
+                ->pluck('idestado')
+                ->toArray();
+            $candidates = $found;
+            if (!in_array($explicitApproved, $candidates)) {
+                $candidates[] = $explicitApproved;
+            }
+            $candidates = array_values(array_unique(array_map('intval', $candidates)));
+
+            $estudianteCursoIds = [];
+            if (!empty($candidates)) {
+                $rows = soliestudiante::where('idestudiante', $userId)
+                    ->whereIn('idestado', $candidates)
+                    ->pluck('idcurso')
+                    ->toArray();
+                $estudianteCursoIds = $rows ?: [];
+            }
+
+            $courseIds = array_values(array_unique(array_merge($docenteCursoIds, $estudianteCursoIds)));
+
+            if (empty($courseIds)) {
+                return response()->json(null, 200);
+            }
+
+            // Seleccionar la próxima clase que esté en curso o por iniciar.
+            // Incluir:
+            // - clases sin fecha (fechahorainicio NULL)
+            // - clases futuras (fechahorainicio >= now)
+            // - clases en curso (fechahorainicio <= now AND (fechahorafinal IS NULL OR fechahorafinal >= now))
 
             $next = clase::with(['curso','estado'])
-                ->whereHas('curso', function($q) use ($userId) {
-                    $q->where('idusuario', $userId);
-                })
+                ->whereIn('idcurso', $courseIds)
                 ->where(function($q) use ($now) {
-                    $q->whereNull('fechahorainicio')->orWhere('fechahorainicio', '>=', $now);
+                    $q->whereNull('fechahorainicio')
+                      ->orWhere('fechahorainicio', '>=', $now)
+                      ->orWhere(function($q2) use ($now) {
+                          $q2->where('fechahorainicio', '<=', $now)
+                             ->where(function($q3) use ($now) {
+                                 $q3->whereNull('fechahorafinal')->orWhere('fechahorafinal', '>=', $now);
+                             });
+                      });
                 })
-                ->orderBy('fechahorainicio', 'asc')
+                ->orderByRaw("CASE WHEN fechahorainicio IS NULL THEN 1 ELSE 0 END, fechahorainicio ASC")
                 ->first();
 
             return response()->json($next, 200);

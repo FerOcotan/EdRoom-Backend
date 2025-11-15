@@ -13,7 +13,7 @@ class DailyController extends Controller
      */
     public function store(Request $request)
     {
-        $apiKey = env('DAILY_API_KEY');
+        $apiKey = env('DAILY_API_KEY') ?: config('services.daily.key');
         if (!$apiKey) {
             return response()->json(['error' => 'Daily API key not configured'], 500);
         }
