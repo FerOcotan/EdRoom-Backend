@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\soliestudiante;
 use App\Models\estado;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class SoliEstudianteController extends Controller
@@ -15,9 +16,19 @@ class SoliEstudianteController extends Controller
             // If the middleware attached a beeart_user_id, limit solicitudes to cursos owned by that user
             $beeartUserId = $request->attributes->get('beeart_user_id');
             if ($beeartUserId) {
-                $query->whereHas('curso', function($q) use ($beeartUserId) {
-                    $q->where('idusuario', $beeartUserId);
-                });
+                // Determine role of the caller: admins should see all, docentes see cursos they own, estudiantes see their own solicitudes
+                $me = User::find($beeartUserId);
+                $role = $me ? (int)($me->idrol ?? 0) : null;
+                if ($role === 2) {
+                    // Docente: only solicitudes for cursos owned by this docente
+                    $query->whereHas('curso', function($q) use ($beeartUserId) {
+                        $q->where('idusuario', $beeartUserId);
+                    });
+                } elseif ($role === 3) {
+                    // Estudiante: only their own solicitudes
+                    $query->where('idestudiante', $beeartUserId);
+                }
+                // Admins (role === 1) and other roles see all (no extra filter)
             }
 
             $results = $query->get();

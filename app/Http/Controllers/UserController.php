@@ -68,4 +68,97 @@ class UserController extends Controller
             'idrol' => $idrol,
         ]);
     }
+
+    /**
+     * Listar usuarios (solo admin/idrol=1)
+     */
+    public function index(Request $request)
+    {
+        $userId = $request->attributes->get('beeart_user_id');
+        if (!$userId) return response()->json(['message' => 'No autenticado'], 401);
+
+        $me = User::find($userId);
+        if (!$me) return response()->json(['message' => 'Usuario no encontrado'], 404);
+
+        if ((int)($me->idrol ?? 0) !== 1) {
+            return response()->json(['message' => 'Acceso denegado'], 403);
+        }
+
+        $users = User::all()->map(function($u) {
+            return [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'idrol' => $u->idrol ?? null,
+            ];
+        });
+
+        return response()->json($users);
+    }
+
+    /**
+     * Mostrar un usuario por id (admin)
+     */
+    public function show(Request $request, $id)
+    {
+        $userId = $request->attributes->get('beeart_user_id');
+        if (!$userId) return response()->json(['message' => 'No autenticado'], 401);
+
+        $me = User::find($userId);
+        if (!$me) return response()->json(['message' => 'Usuario no encontrado'], 404);
+        if ((int)($me->idrol ?? 0) !== 1) return response()->json(['message' => 'Acceso denegado'], 403);
+
+        $u = User::find($id);
+        if (!$u) return response()->json(['message' => 'Usuario no encontrado'], 404);
+
+        return response()->json([
+            'id' => $u->id,
+            'name' => $u->name,
+            'email' => $u->email,
+            'idrol' => $u->idrol ?? null,
+        ]);
+    }
+
+    /**
+     * Actualizar usuario por id (admin)
+     */
+    public function updateUser(Request $request, $id)
+    {
+        $userId = $request->attributes->get('beeart_user_id');
+        if (!$userId) return response()->json(['message' => 'No autenticado'], 401);
+
+        $me = User::find($userId);
+        if (!$me) return response()->json(['message' => 'Usuario no encontrado'], 404);
+        if ((int)($me->idrol ?? 0) !== 1) return response()->json(['message' => 'Acceso denegado'], 403);
+
+        $u = User::find($id);
+        if (!$u) return response()->json(['message' => 'Usuario no encontrado'], 404);
+
+        $data = $request->only(['name', 'email', 'idrol']);
+        if (isset($data['name'])) $u->name = $data['name'];
+        if (isset($data['email'])) $u->email = $data['email'];
+        if (isset($data['idrol'])) $u->idrol = $data['idrol'];
+        $u->save();
+
+        return response()->json(['message' => 'Actualizado', 'user' => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'idrol' => $u->idrol]]);
+    }
+
+    /**
+     * Eliminar usuario por id (admin)
+     */
+    public function destroy(Request $request, $id)
+    {
+        $userId = $request->attributes->get('beeart_user_id');
+        if (!$userId) return response()->json(['message' => 'No autenticado'], 401);
+
+        $me = User::find($userId);
+        if (!$me) return response()->json(['message' => 'Usuario no encontrado'], 404);
+        if ((int)($me->idrol ?? 0) !== 1) return response()->json(['message' => 'Acceso denegado'], 403);
+
+        $u = User::find($id);
+        if (!$u) return response()->json(['message' => 'Usuario no encontrado'], 404);
+
+        $u->delete();
+        return response()->json(['deleted' => true]);
+    }
 }

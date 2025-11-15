@@ -68,4 +68,10 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
     Route::post('daily/rooms', [DailyController::class, 'store']);
     // Daily: crear meeting token para unirse como owner/participant
     Route::post('daily/tokens', [DailyController::class, 'createToken']);
+    
+        // Usuarios (admin)
+        Route::get('users', [\App\Http\Controllers\UserController::class, 'index']);
+        Route::get('users/{id}', [\App\Http\Controllers\UserController::class, 'show']);
+        Route::patch('users/{id}', [\App\Http\Controllers\UserController::class, 'updateUser']);
+        Route::delete('users/{id}', [\App\Http\Controllers\UserController::class, 'destroy']);
 });
