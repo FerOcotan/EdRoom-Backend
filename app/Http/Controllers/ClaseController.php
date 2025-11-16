@@ -136,6 +136,33 @@ class ClaseController extends Controller
             'idestado' => 'required|integer',
         ]);
 
+        // Additional business validation: no permitir fechas en el pasado y asegurar inicio < fin
+        try {
+            $now = now();
+            if (!empty($data['fechahorainicio'])) {
+                $start = \Illuminate\Support\Carbon::parse($data['fechahorainicio']);
+                if ($start->lessThan($now)) {
+                    return response()->json(['errors' => ['fechahorainicio' => ['La fecha y hora de inicio no puede ser anterior al momento actual.']]], 422);
+                }
+            }
+            if (!empty($data['fechahorafinal'])) {
+                $end = \Illuminate\Support\Carbon::parse($data['fechahorafinal']);
+                if ($end->lessThan($now)) {
+                    return response()->json(['errors' => ['fechahorafinal' => ['La fecha y hora de fin no puede ser anterior al momento actual.']]], 422);
+                }
+            }
+            if (!empty($data['fechahorainicio']) && !empty($data['fechahorafinal'])) {
+                $start = \Illuminate\Support\Carbon::parse($data['fechahorainicio']);
+                $end = \Illuminate\Support\Carbon::parse($data['fechahorafinal']);
+                if ($end->lessThanOrEqualTo($start)) {
+                    return response()->json(['errors' => ['fechahorafinal' => ['La fecha de fin debe ser posterior a la fecha de inicio.']]], 422);
+                }
+            }
+        } catch (\Exception $e) {
+            // Si el parse falla, devolver error 422 con mensaje claro
+            return response()->json(['errors' => ['fechas' => ['Fechas inválidas.']]], 422);
+        }
+
         $c = clase::create($data);
         return response()->json($c, 201);
     }
@@ -144,6 +171,33 @@ class ClaseController extends Controller
         $c = clase::where('idclase', $id)->first();
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
         $data = $req->only(['tema','fechahorainicio','fechahorafinal','url','idestado']);
+
+        // Validate dates: no permitir poner fechas pasadas y asegurar inicio < fin
+        try {
+            $now = now();
+            if (!empty($data['fechahorainicio'])) {
+                $start = \Illuminate\Support\Carbon::parse($data['fechahorainicio']);
+                if ($start->lessThan($now)) {
+                    return response()->json(['errors' => ['fechahorainicio' => ['La fecha y hora de inicio no puede ser anterior al momento actual.']]], 422);
+                }
+            }
+            if (!empty($data['fechahorafinal'])) {
+                $end = \Illuminate\Support\Carbon::parse($data['fechahorafinal']);
+                if ($end->lessThan($now)) {
+                    return response()->json(['errors' => ['fechahorafinal' => ['La fecha y hora de fin no puede ser anterior al momento actual.']]], 422);
+                }
+            }
+            if (!empty($data['fechahorainicio']) && !empty($data['fechahorafinal'])) {
+                $start = \Illuminate\Support\Carbon::parse($data['fechahorainicio']);
+                $end = \Illuminate\Support\Carbon::parse($data['fechahorafinal']);
+                if ($end->lessThanOrEqualTo($start)) {
+                    return response()->json(['errors' => ['fechahorafinal' => ['La fecha de fin debe ser posterior a la fecha de inicio.']]], 422);
+                }
+            }
+        } catch (\Exception $e) {
+            return response()->json(['errors' => ['fechas' => ['Fechas inválidas.']]], 422);
+        }
+
         $c->fill($data);
         $c->save();
         return response()->json($c);

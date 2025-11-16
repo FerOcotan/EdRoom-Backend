@@ -151,13 +151,42 @@ class AuthTokenController extends Controller
 
         $data = $validator->validated();
 
-        // Determinar rol y estado por defecto
-        $rolRecord = rol::where('nombre', 'Estudiante')->first();
-        if (!$rolRecord) {
-            // Si no existe el rol 'Estudiante', crearlo mínimamente
-            $rolRecord = rol::create(['nombre' => 'Estudiante', 'descripcion' => '']);
+        // Determinar rol y estado por defecto. Permitimos que el frontend pida un role
+        // via request->role (puede ser string como 'teacher'|'student' o un id numérico).
+        $roleInput = $request->input('role');
+        $idrol = null;
+
+        if ($roleInput) {
+            // si es numérico y existe, usarlo
+            if (is_numeric($roleInput)) {
+                $maybe = rol::where('idrol', intval($roleInput))->first();
+                if ($maybe) $idrol = $maybe->idrol;
+            } else {
+                $ri = strtolower(trim((string)$roleInput));
+                // buscar coincidencias por nombre (soportar 'teacher', 'docente', 'student', 'estudiante', 'alumno')
+                if (str_contains($ri, 'doc') || str_contains($ri, 'teach')) {
+                    $maybe = rol::whereRaw("LOWER(nombre) LIKE ?", ['%docente%'])->orWhereRaw("LOWER(nombre) LIKE ?", ['%teacher%'])->first();
+                    if ($maybe) $idrol = $maybe->idrol;
+                } elseif (str_contains($ri, 'est') || str_contains($ri, 'alum') || str_contains($ri, 'student')) {
+                    $maybe = rol::whereRaw("LOWER(nombre) LIKE ?", ['%estudiante%'])->orWhereRaw("LOWER(nombre) LIKE ?", ['%student%'])->first();
+                    if ($maybe) $idrol = $maybe->idrol;
+                }
+                // si no se resolvió, intentar buscar por nombre exacto
+                if (!$idrol) {
+                    $maybe = rol::whereRaw("LOWER(nombre) = ?", [trim(strtolower($roleInput))])->first();
+                    if ($maybe) $idrol = $maybe->idrol;
+                }
+            }
         }
-        $idrol = $rolRecord ? $rolRecord->idrol : 1;
+
+        // Si no se resolvió a partir de la petición, usar 'Estudiante' por defecto (crear si faltara)
+        if (!$idrol) {
+            $rolRecord = rol::whereRaw("LOWER(nombre) LIKE ?", ['%estudiante%'])->first();
+            if (!$rolRecord) {
+                $rolRecord = rol::create(['nombre' => 'Estudiante', 'descripcion' => '']);
+            }
+            $idrol = $rolRecord ? $rolRecord->idrol : 1;
+        }
 
         $estadoRecord = estado::where('estado', 'Activo')->first();
         if (!$estadoRecord) {
