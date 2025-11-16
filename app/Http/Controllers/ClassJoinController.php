@@ -67,7 +67,24 @@ class ClassJoinController extends Controller
             ], 500);
         }
 
+        // Loguear destinatario y payload para depuración (revisar storage/logs/laravel.log)
+        try {
+            Log::info('join-request: enviando solicitud de unión', [
+                'class_id' => $classId,
+                'to'       => $to,
+                'payload'  => $data,
+            ]);
+        } catch (\Throwable $e) {
+            // No bloquear el flujo si el log falla por alguna razón
+        }
+
         // 5) Enviar correo
+        // Forzar que el enlace del correo lleve siempre a la página de solicitudes
+        // en el frontend (no redirigir directamente al curso). Se toma la base
+        // desde la configuración 'app.frontend_url' / env FRONTEND_URL.
+        $frontendBase = config('app.frontend_url', env('FRONTEND_URL')) ?: config('app.url');
+        $joinUrl = rtrim($frontendBase, '/') . '/solicitudes';
+
         try {
             Mail::to($to)->send(new JoinClassRequestMail(
                 $data['requester_name'],
@@ -75,7 +92,7 @@ class ClassJoinController extends Controller
                 $data['class_title'],  // título que viene del front
                 $classId,
                 $data['notes'] ?? null,
-                $data['join_url'] ?? null
+                $joinUrl
             ));
         } catch (\Throwable $e) {
             Log::error('join-request mail error', [

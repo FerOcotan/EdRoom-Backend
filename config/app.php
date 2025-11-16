@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend Base URL
+    |--------------------------------------------------------------------------
+    |
+    | URL base del frontend (p. ej. la SPA) usada para construir enlaces en
+    | correos o notificaciones. Defínela en el archivo .env como FRONTEND_URL
+    | en cada entorno (desarrollo, staging, producción).
+    |
+    */
+    'frontend_url' => env('FRONTEND_URL', env('APP_URL')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
