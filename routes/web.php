@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Models\User;
 use App\Http\Controllers\AuthTokenController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ClassJoinController;
 use Illuminate\Http\Request;
 use App\Models\SessionToken;
 // Middlewares

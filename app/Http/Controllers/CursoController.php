@@ -59,7 +59,7 @@ class CursoController extends Controller
             'idusuario' => 'required|integer',
             // nombre: permitir dígitos pero debe ser único por nombre de curso
             'nombre' => ['required','string','max:50','unique:curso,nombre'],
-            'descripcion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:300',
             // máximo estudiantes: entero entre 1 y 45
             'maximoest' => 'required|integer|min:1|max:45',
             'estuinscritos' => 'nullable|integer',
@@ -77,7 +77,7 @@ class CursoController extends Controller
         // Cuando actualizamos, permitimos el mismo nombre para el registro actual
         $validated = $req->validate([
             'nombre' => ['sometimes','required','string','max:50',"unique:curso,nombre,{$id},idcurso"],
-            'descripcion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:300',
             'maximoest' => ['sometimes','required','integer','min:1','max:45'],
             'estuinscritos' => 'nullable|integer',
             'idestado' => ['sometimes','required','integer'],
@@ -99,5 +99,36 @@ class CursoController extends Controller
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
         $c->delete();
         return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * Obtener cursos del usuario autenticado (según token Beeart).
+     * Esta ruta permite al frontend pedir sus propios cursos sin enviar
+     * el parámetro `idusuario` por query string.
+     */
+    public function mine(Request $req) {
+        try {
+            // El middleware CheckBeeartToken adjunta el id de usuario en
+            // $request->attributes->get('beeart_user_id') cuando el token es válido.
+            $beeartUserId = $req->attributes->get('beeart_user_id');
+            if (!$beeartUserId) {
+                return response()->json(['message' => 'Usuario no autenticado'], 401);
+            }
+
+            $cursos = curso::with(['user','estado','clases'])
+                ->where('idusuario', $beeartUserId)
+                ->where(function($q) {
+                    $q->whereNull('idestado')
+                      ->orWhere('idestado', '!=', 9);
+                })
+                ->orderBy('idcurso', 'asc')
+                ->limit(10)
+                ->get();
+
+            return response()->json($cursos);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('[CursoController@mine] Error fetching mine: ' . $e->getMessage());
+            return response()->json([], 200);
+        }
     }
 }

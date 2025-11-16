@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->unsignedBigInteger('idusuario');
 
             $table->string('nombre', 50);
-            $table->string('descripcion', 100)->nullable();
+            $table->string('descripcion', 300)->nullable();
             $table->integer('maximoest');
             $table->integer('estuinscritos')->default(0);
             $table->unsignedBigInteger('idestado');

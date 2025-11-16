@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthTokenController;
 use App\Http\Controllers\CursoController;
 use App\Http\Controllers\ClaseController;
 use App\Http\Controllers\SoliEstudianteController;
@@ -21,9 +22,14 @@ use App\Http\Controllers\ClassJoinController; // 👈 IMPORTANTE
 |
 */
 
+// Public endpoints (no token required)
+Route::get('users/check-email', [AuthTokenController::class, 'checkEmail']);
+
 Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(function() {
     // Cursos
     Route::get('cursos', [CursoController::class, 'index']);
+    // Obtener cursos del usuario autenticado (usa token Beeart)
+    Route::get('cursos/mine', [CursoController::class, 'mine']);
     Route::get('cursos/{id}', [CursoController::class, 'show']);
     Route::post('cursos', [CursoController::class, 'store']);
     Route::patch('cursos/{id}', [CursoController::class, 'update']);

@@ -212,4 +212,16 @@ class AuthTokenController extends Controller
             ],
         ], 201);
     }
+
+    /**
+     * Comprobar disponibilidad de correo (público).
+     * GET /api/users/check-email?email=...
+     */
+    public function checkEmail(Request $request)
+    {
+        $email = $request->query('email');
+        if (!$email) return response()->json(['error' => 'email_required'], 400);
+        $exists = User::where('email', $email)->exists();
+        return response()->json(['available' => !$exists]);
+    }
 }
