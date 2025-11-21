@@ -126,9 +126,51 @@ class SoliEstudianteController extends Controller
 
         if (!$allowed) return response()->json(['message' => 'No autorizado'], 403);
 
+        $oldIdEstado = $s->idestado;
+
         $data = $req->only(['fecha','idestado']);
         $s->fill($data);
         $s->save();
+
+        // Intentar enviar correo si el estado cambió a "aprobado" (heurística usada en otros métodos)
+        try {
+            $s->load('estudiante','curso','estado');
+
+            $explicitApproved = 6;
+            $found = \App\Models\estado::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
+                ->pluck('idestado')
+                ->toArray();
+
+            $candidates = $found;
+            if (!in_array($explicitApproved, $candidates)) {
+                $candidates[] = $explicitApproved;
+            }
+            $candidates = array_values(array_unique(array_map('intval', $candidates)));
+
+            if (in_array((int)$s->idestado, $candidates) && (int)$oldIdEstado !== (int)$s->idestado) {
+                if ($s->estudiante && !empty($s->estudiante->email)) {
+                    // Construir nombre del estudiante: preferir `name`, fallback a `nombre apellido`, fallback a email
+                    $studentName = $s->estudiante->name ?? trim(($s->estudiante->nombre ?? '') . ' ' . ($s->estudiante->apellido ?? ''));
+                    if (empty($studentName)) $studentName = $s->estudiante->email;
+
+                    \Illuminate\Support\Facades\Mail::to($s->estudiante->email)
+                        ->send(new \App\Mail\StudentAdmittedMail(
+                            $studentName,
+                            $s->estudiante->email,
+                            $s->curso->nombre ?? ($s->curso->title ?? ''),
+                            (string)($s->idcurso ?? $s->curso->idcurso ?? ''),
+                            null,
+                            (env('FRONTEND_URL', env('APP_URL', '')) ?: '') . '/courses/' . ($s->idcurso ?? $s->curso->idcurso ?? '')
+                        ));
+                }
+            }
+        } catch (\Exception $e) {
+            // no interrumpir el flujo por errores en el envío de correo
+        }
+
         return response()->json($s);
     }
 

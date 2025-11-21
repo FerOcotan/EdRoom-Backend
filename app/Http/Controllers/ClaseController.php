@@ -243,6 +243,92 @@ class ClaseController extends Controller
         }
 
         $c = clase::create($data);
+
+        // Notificar por correo a estudiantes aprobados del curso
+        try {
+            $c->load('curso');
+
+            // Determinar estados aprobados (misma heurística usada en otros controladores)
+            $explicitApproved = 6;
+            $found = EstadoModel::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
+                ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
+                ->pluck('idestado')
+                ->toArray();
+            $candidates = $found;
+            if (!in_array($explicitApproved, $candidates)) {
+                $candidates[] = $explicitApproved;
+            }
+            $candidates = array_values(array_unique(array_map('intval', $candidates)));
+
+            if (!empty($candidates)) {
+                $students = soliestudiante::with('estudiante')
+                    ->where('idcurso', $data['idcurso'])
+                    ->whereIn('idestado', $candidates)
+                    ->get();
+
+                $emails = [];
+                foreach ($students as $s) {
+                    if ($s->estudiante && !empty($s->estudiante->email)) {
+                        // Construir nombre del estudiante: preferir `name`, fallback a `nombre apellido`, fallback a email
+                        $studentName = $s->estudiante->name ?? trim(($s->estudiante->nombre ?? '') . ' ' . ($s->estudiante->apellido ?? ''));
+                        if (empty($studentName)) $studentName = $s->estudiante->email;
+                        $emails[$s->estudiante->email] = $studentName;
+                    }
+                }
+
+                if (!empty($emails)) {
+                    // Formatear fechas en español (ej: 21 de noviembre de 2025 a las 16:40)
+                    try {
+                        $startFmt = null;
+                        $endFmt = null;
+                        if (!empty($c->fechahorainicio)) {
+                            $startFmt = \Illuminate\Support\Carbon::parse($c->fechahorainicio)
+                                ->locale('es')
+                                ->isoFormat('D [de] MMMM [de] YYYY [a las] HH:mm');
+                        }
+                        if (!empty($c->fechahorafinal)) {
+                            $endFmt = \Illuminate\Support\Carbon::parse($c->fechahorafinal)
+                                ->locale('es')
+                                ->isoFormat('D [de] MMMM [de] YYYY [a las] HH:mm');
+                        }
+                    } catch (\Exception $e) {
+                        $startFmt = !empty($c->fechahorainicio) ? (string)$c->fechahorainicio : null;
+                        $endFmt = !empty($c->fechahorafinal) ? (string)$c->fechahorafinal : null;
+                    }
+
+                    // Nombre del docente (dueño del curso)
+                    $teacherName = null;
+                    try {
+                        $ownerId = \App\Models\curso::where('idcurso', $data['idcurso'])->value('idusuario');
+                        if ($ownerId) {
+                            $owner = User::find($ownerId);
+                            if ($owner) {
+                                $teacherName = $owner->name ?? trim(($owner->nombre ?? '') . ' ' . ($owner->apellido ?? '')) ?: null;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        $teacherName = null;
+                    }
+
+                    foreach ($emails as $email => $studentName) {
+                        \Illuminate\Support\Facades\Mail::to($email)
+                            ->send(new \App\Mail\ClassScheduledMail(
+                                $studentName,
+                                $c->curso->nombre ?? '',
+                                $startFmt,
+                                $endFmt,
+                                (env('FRONTEND_URL', env('APP_URL', '')) ?: '') . '/courses/' . ($c->idcurso ?? ''),
+                                $teacherName
+                            ));
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // No interrumpir la creación de la clase si el envío falla
+        }
+
         return response()->json($c, 201);
     }
 
