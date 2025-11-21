@@ -60,16 +60,16 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
     // Roles
     Route::get('roles', [RolController::class, 'index']);
     Route::get('roles/{id}', [RolController::class, 'show']);
-    Route::post('roles', [RolController::class, 'store']);
-    Route::patch('roles/{id}', [RolController::class, 'update']);
-    Route::delete('roles/{id}', [RolController::class, 'destroy']);
+    Route::post('roles', [RolController::class, 'store'])->middleware(\App\Http\Middleware\RequireAdmin::class);
+    Route::patch('roles/{id}', [RolController::class, 'update'])->middleware(\App\Http\Middleware\RequireAdmin::class);
+    Route::delete('roles/{id}', [RolController::class, 'destroy'])->middleware(\App\Http\Middleware\RequireAdmin::class);
 
     // Estados
     Route::get('estados', [EstadoController::class, 'index']);
     Route::get('estados/{id}', [EstadoController::class, 'show']);
-    Route::post('estados', [EstadoController::class, 'store']);
-    Route::patch('estados/{id}', [EstadoController::class, 'update']);
-    Route::delete('estados/{id}', [EstadoController::class, 'destroy']);
+    Route::post('estados', [EstadoController::class, 'store'])->middleware(\App\Http\Middleware\RequireAdmin::class);
+    Route::patch('estados/{id}', [EstadoController::class, 'update'])->middleware(\App\Http\Middleware\RequireAdmin::class);
+    Route::delete('estados/{id}', [EstadoController::class, 'destroy'])->middleware(\App\Http\Middleware\RequireAdmin::class);
 
     // Daily (crear salas)
     Route::post('daily/rooms', [DailyController::class, 'store']);

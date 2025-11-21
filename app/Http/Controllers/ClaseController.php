@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\clase;
 use App\Models\soliestudiante;
 use App\Models\estado as EstadoModel;
+use App\Models\User;
+use App\Models\curso as CursoModel;
 use Illuminate\Http\Request;
 
 class ClaseController extends Controller
@@ -14,23 +16,59 @@ class ClaseController extends Controller
             $req = request();
             $query = clase::with(['curso','estado']);
 
-            // Si pasan ?curso=ID, filtrar por ese curso
             $cursoId = $req->query('curso');
-            if ($cursoId) {
-                $query->where('idcurso', $cursoId);
-            }
-
-            // Si el middleware adjunta beeart_user_id, limitar a cursos del docente
-            // pero sólo cuando NO se solicitó explícitamente `?curso=ID`.
-            // Esto permite que estudiantes autenticados consulten las clases de
-            // un curso específico sin que se aplique el filtro por owner.
             $beeartUserId = $req->attributes->get('beeart_user_id');
-            if ($beeartUserId && empty($cursoId)) {
-                $query->whereHas('curso', function($q) use ($beeartUserId) {
-                    $q->where('idusuario', $beeartUserId);
-                });
+
+            // Require authenticated user (middleware normally ensures token)
+            if (!$beeartUserId) {
+                return response()->json(['message' => 'Usuario no autenticado'], 401);
             }
 
+            // Allow admins to see everything
+            $me = User::find($beeartUserId);
+            $role = $me ? (int)($me->idrol ?? 0) : null;
+            if ($role === 1) {
+                if ($cursoId) $query->where('idcurso', $cursoId);
+                $results = $query->get();
+                return response()->json($results);
+            }
+
+            // If a specific course is requested, only allow if the user is the owner
+            // or the user has an approved solicitud (idestado == 6) for that course.
+            if ($cursoId) {
+                $courseOwner = CursoModel::where('idcurso', $cursoId)->value('idusuario');
+                if ($courseOwner && $courseOwner == $beeartUserId) {
+                    $query->where('idcurso', $cursoId);
+                    return response()->json($query->get());
+                }
+
+                // Check if the user has an approved solicitud for this course
+                $approved = soliestudiante::where('idcurso', $cursoId)
+                    ->where('idestudiante', $beeartUserId)
+                    ->where('idestado', 6)
+                    ->exists();
+                if ($approved) {
+                    $query->where('idcurso', $cursoId);
+                    return response()->json($query->get());
+                }
+
+                return response()->json(['message' => 'No autorizado'], 403);
+            }
+
+            // No specific course requested: return classes for courses where the user
+            // is owner OR where the user has an approved solicitud (idestado == 6).
+            $ownerCourseIds = CursoModel::where('idusuario', $beeartUserId)->pluck('idcurso')->toArray();
+            $approvedCourseIds = soliestudiante::where('idestudiante', $beeartUserId)
+                ->where('idestado', 6)
+                ->pluck('idcurso')
+                ->toArray();
+
+            $courseIds = array_values(array_unique(array_merge($ownerCourseIds, $approvedCourseIds)));
+            if (empty($courseIds)) {
+                return response()->json([]);
+            }
+
+            $query->whereIn('idcurso', $courseIds);
             $results = $query->get();
             return response()->json($results);
         } catch (\Exception $e) {
@@ -118,9 +156,40 @@ class ClaseController extends Controller
 
     public function show($id) {
         try {
+            $req = request();
+            $beeartUserId = $req->attributes->get('beeart_user_id');
+
             $c = clase::with(['curso','estado'])->where('idclase', $id)->first();
             if (!$c) return response()->json(['message' => 'No encontrado'], 404);
-            return response()->json($c);
+
+            // Require authentication
+            if (!$beeartUserId) {
+                return response()->json(['message' => 'Usuario no autenticado'], 401);
+            }
+
+            // Admins can view
+            $me = User::find($beeartUserId);
+            $role = $me ? (int)($me->idrol ?? 0) : null;
+            if ($role === 1) {
+                return response()->json($c);
+            }
+
+            // Owner of the course can view
+            $courseOwner = CursoModel::where('idcurso', $c->idcurso)->value('idusuario');
+            if ($courseOwner && $courseOwner == $beeartUserId) {
+                return response()->json($c);
+            }
+
+            // Student must have an approved solicitud (idestado == 6)
+            $approved = soliestudiante::where('idcurso', $c->idcurso)
+                ->where('idestudiante', $beeartUserId)
+                ->where('idestado', 6)
+                ->exists();
+            if ($approved) {
+                return response()->json($c);
+            }
+
+            return response()->json(['message' => 'No autorizado'], 403);
         } catch (\Exception $e) {
             return response()->json(['message' => 'No encontrado'], 404);
         }
@@ -135,6 +204,16 @@ class ClaseController extends Controller
             'url' => 'nullable|string|max:100',
             'idestado' => 'required|integer',
         ]);
+
+        // Verify requester owns the course
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) {
+            return response()->json(['message' => 'Usuario no autenticado'], 401);
+        }
+        $courseOwner = \App\Models\curso::where('idcurso', $data['idcurso'])->value('idusuario');
+        if ($courseOwner != $beeartUserId) {
+            return response()->json(['message' => 'No autorizado para crear clases en este curso'], 403);
+        }
 
         // Additional business validation: no permitir fechas en el pasado y asegurar inicio < fin
         try {
@@ -172,6 +251,15 @@ class ClaseController extends Controller
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
         $data = $req->only(['tema','fechahorainicio','fechahorafinal','url','idestado']);
 
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) {
+            return response()->json(['message' => 'Usuario no autenticado'], 401);
+        }
+        $courseOwner = \App\Models\curso::where('idcurso', $c->idcurso)->value('idusuario');
+        if ($courseOwner != $beeartUserId) {
+            return response()->json(['message' => 'No autorizado para modificar esta clase'], 403);
+        }
+
         // Validate dates: no permitir poner fechas pasadas y asegurar inicio < fin
         try {
             $now = now();
@@ -204,8 +292,20 @@ class ClaseController extends Controller
     }
 
     public function destroy($id) {
+        $req = request();
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) {
+            return response()->json(['message' => 'Usuario no autenticado'], 401);
+        }
+
         $c = clase::where('idclase', $id)->first();
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
+
+        $courseOwner = \App\Models\curso::where('idcurso', $c->idcurso)->value('idusuario');
+        if ($courseOwner != $beeartUserId) {
+            return response()->json(['message' => 'No autorizado para eliminar esta clase'], 403);
+        }
+
         $c->delete();
         return response()->json(['deleted' => true]);
     }

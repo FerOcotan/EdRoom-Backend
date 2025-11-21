@@ -66,6 +66,12 @@ class CursoController extends Controller
             'idestado' => 'required|integer',
         ]);
 
+        // If request contains a beeart token, prefer that user as the course owner
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if ($beeartUserId) {
+            $data['idusuario'] = $beeartUserId;
+        }
+
         $c = curso::create($data);
         return response()->json($c, 201);
     }
@@ -73,6 +79,14 @@ class CursoController extends Controller
     public function update(Request $req, $id) {
         $c = curso::where('idcurso', $id)->first();
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
+
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) {
+            return response()->json(['message' => 'Usuario no autenticado'], 401);
+        }
+        if ($c->idusuario != $beeartUserId) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
         // Validar datos para evitar errores de base de datos (p. ej. texto demasiado largo)
         // Cuando actualizamos, permitimos el mismo nombre para el registro actual
         $validated = $req->validate([
@@ -95,8 +109,18 @@ class CursoController extends Controller
     }
 
     public function destroy($id) {
+        $req = request();
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) {
+            return response()->json(['message' => 'Usuario no autenticado'], 401);
+        }
+
         $c = curso::where('idcurso', $id)->first();
         if (!$c) return response()->json(['message' => 'No encontrado'], 404);
+        if ($c->idusuario != $beeartUserId) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $c->delete();
         return response()->json(['deleted' => true]);
     }

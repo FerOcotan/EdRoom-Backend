@@ -40,9 +40,36 @@ class SoliEstudianteController extends Controller
 
     public function show($id) {
         try {
+            $req = request();
+            $beeartUserId = $req->attributes->get('beeart_user_id');
+
             $s = soliestudiante::with(['estudiante','curso','estado'])->where('idsoliestudiante', $id)->first();
             if (!$s) return response()->json(['message' => 'No encontrado'], 404);
-            return response()->json($s);
+
+            // Require authentication
+            if (!$beeartUserId) {
+                return response()->json(['message' => 'Usuario no autenticado'], 401);
+            }
+
+            // Allow admins
+            $me = User::find($beeartUserId);
+            $role = $me ? (int)($me->idrol ?? 0) : null;
+            if ($role === 1) {
+                return response()->json($s);
+            }
+
+            // Allow the student who sent the solicitud
+            if ($s->idestudiante == $beeartUserId) {
+                return response()->json($s);
+            }
+
+            // Allow the owner of the associated course
+            $courseOwner = \App\Models\curso::where('idcurso', $s->idcurso)->value('idusuario');
+            if ($courseOwner && $courseOwner == $beeartUserId) {
+                return response()->json($s);
+            }
+
+            return response()->json(['message' => 'No autorizado'], 403);
         } catch (\Exception $e) {
             return response()->json(['message' => 'No encontrado'], 404);
         }
@@ -77,6 +104,28 @@ class SoliEstudianteController extends Controller
     public function update(Request $req, $id) {
         $s = soliestudiante::where('idsoliestudiante', $id)->first();
         if (!$s) return response()->json(['message' => 'No encontrado'], 404);
+
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) return response()->json(['message' => 'Usuario no autenticado'], 401);
+
+        $me = User::find($beeartUserId);
+        $role = $me ? (int)($me->idrol ?? 0) : null;
+
+        $allowed = false;
+        if ($role === 1) {
+            // Admin
+            $allowed = true;
+        } elseif ($role === 3) {
+            // Estudiante: sólo puede modificar su propia solicitud
+            if ($s->idestudiante == $beeartUserId) $allowed = true;
+        } elseif ($role === 2) {
+            // Docente: sólo si es propietario del curso asociado
+            $courseOwner = \App\Models\curso::where('idcurso', $s->idcurso)->value('idusuario');
+            if ($courseOwner == $beeartUserId) $allowed = true;
+        }
+
+        if (!$allowed) return response()->json(['message' => 'No autorizado'], 403);
+
         $data = $req->only(['fecha','idestado']);
         $s->fill($data);
         $s->save();
@@ -84,8 +133,28 @@ class SoliEstudianteController extends Controller
     }
 
     public function destroy($id) {
+        $req = request();
+        $beeartUserId = $req->attributes->get('beeart_user_id');
+        if (!$beeartUserId) return response()->json(['message' => 'Usuario no autenticado'], 401);
+
         $s = soliestudiante::where('idsoliestudiante', $id)->first();
         if (!$s) return response()->json(['message' => 'No encontrado'], 404);
+
+        $me = User::find($beeartUserId);
+        $role = $me ? (int)($me->idrol ?? 0) : null;
+
+        $allowed = false;
+        if ($role === 1) {
+            $allowed = true;
+        } elseif ($role === 3) {
+            if ($s->idestudiante == $beeartUserId) $allowed = true;
+        } elseif ($role === 2) {
+            $courseOwner = \App\Models\curso::where('idcurso', $s->idcurso)->value('idusuario');
+            if ($courseOwner == $beeartUserId) $allowed = true;
+        }
+
+        if (!$allowed) return response()->json(['message' => 'No autorizado'], 403);
+
         $s->delete();
         return response()->json(['deleted' => true]);
     }
