@@ -6,6 +6,7 @@ use App\Models\soliestudiante;
 use App\Models\estado;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SoliEstudianteController extends Controller
 {
@@ -129,49 +130,98 @@ class SoliEstudianteController extends Controller
         $oldIdEstado = $s->idestado;
 
         $data = $req->only(['fecha','idestado']);
-        $s->fill($data);
-        $s->save();
 
-        // Intentar enviar correo si el estado cambió a "aprobado" (heurística usada en otros métodos)
+        // Determinar qué estados se consideran "aprobados"
+        $explicitApproved = 6;
+        $found = \App\Models\estado::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
+            ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
+            ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
+            ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
+            ->pluck('idestado')
+            ->toArray();
+
+        $candidates = $found;
+        if (!in_array($explicitApproved, $candidates)) {
+            $candidates[] = $explicitApproved;
+        }
+        $candidates = array_values(array_unique(array_map('intval', $candidates)));
+
+        // Si el nuevo estado implica aprobar y antes no estaba aprobado, comprobar cupo
+        $willBeApproved = isset($data['idestado']) && in_array((int)$data['idestado'], $candidates);
+        $wasApproved = in_array((int)$oldIdEstado, $candidates);
+
         try {
-            $s->load('estudiante','curso','estado');
+            DB::beginTransaction();
 
-            $explicitApproved = 6;
-            $found = \App\Models\estado::whereRaw("LOWER(estado) LIKE ?", ['%aprob%'])
-                ->orWhereRaw("LOWER(estado) LIKE ?", ['%acept%'])
-                ->orWhereRaw("LOWER(estado) LIKE ?", ['%inscrit%'])
-                ->orWhereRaw("LOWER(estado) LIKE ?", ['%matricu%'])
-                ->pluck('idestado')
-                ->toArray();
+            // Si se va a aprobar y antes no estaba, validar cupo
+            if ($willBeApproved && !$wasApproved) {
+                $curso = \App\Models\curso::where('idcurso', $s->idcurso)->first();
+                $max = $curso ? (int)($curso->maximoest ?? 0) : 0;
 
-            $candidates = $found;
-            if (!in_array($explicitApproved, $candidates)) {
-                $candidates[] = $explicitApproved;
-            }
-            $candidates = array_values(array_unique(array_map('intval', $candidates)));
+                if ($max > 0) {
+                    $currentApproved = soliestudiante::where('idcurso', $s->idcurso)
+                        ->whereIn('idestado', $candidates)
+                        ->count();
 
-            if (in_array((int)$s->idestado, $candidates) && (int)$oldIdEstado !== (int)$s->idestado) {
-                if ($s->estudiante && !empty($s->estudiante->email)) {
-                    // Construir nombre del estudiante: preferir `name`, fallback a `nombre apellido`, fallback a email
-                    $studentName = $s->estudiante->name ?? trim(($s->estudiante->nombre ?? '') . ' ' . ($s->estudiante->apellido ?? ''));
-                    if (empty($studentName)) $studentName = $s->estudiante->email;
-
-                    \Illuminate\Support\Facades\Mail::to($s->estudiante->email)
-                        ->send(new \App\Mail\StudentAdmittedMail(
-                            $studentName,
-                            $s->estudiante->email,
-                            $s->curso->nombre ?? ($s->curso->title ?? ''),
-                            (string)($s->idcurso ?? $s->curso->idcurso ?? ''),
-                            null,
-                            (env('FRONTEND_URL', env('APP_URL', '')) ?: '') . '/courses/' . ($s->idcurso ?? $s->curso->idcurso ?? '')
-                        ));
+                    if ($currentApproved >= $max) {
+                        DB::rollBack();
+                        return response()->json(['message' => 'Cupo completo para este curso'], 409);
+                    }
                 }
             }
-        } catch (\Exception $e) {
-            // no interrumpir el flujo por errores en el envío de correo
-        }
 
-        return response()->json($s);
+            // Aplicar cambios
+            $s->fill($data);
+            $s->save();
+
+            // Actualizar contador `estuinscritos` en la tabla curso si es posible
+            try {
+                $s->load('estudiante','curso','estado');
+
+                // Si pasó de no aprobado -> aprobado, incrementar contador
+                if ($willBeApproved && !$wasApproved) {
+                    if (isset($curso) && $curso) {
+                        $curso->estuinscritos = max(0, (int)($curso->estuinscritos ?? 0)) + 1;
+                        $curso->save();
+                    }
+                }
+
+                // Si pasó de aprobado -> no aprobado, decrementar contador
+                if (!$willBeApproved && $wasApproved) {
+                    $curso = $curso ?? \App\Models\curso::where('idcurso', $s->idcurso)->first();
+                    if ($curso) {
+                        $curso->estuinscritos = max(0, (int)($curso->estuinscritos ?? 0) - 1);
+                        $curso->save();
+                    }
+                }
+
+                // Envío de correo si el estado cambió a aprobado
+                if (in_array((int)$s->idestado, $candidates) && (int)$oldIdEstado !== (int)$s->idestado) {
+                    if ($s->estudiante && !empty($s->estudiante->email)) {
+                        $studentName = $s->estudiante->name ?? trim(($s->estudiante->nombre ?? '') . ' ' . ($s->estudiante->apellido ?? ''));
+                        if (empty($studentName)) $studentName = $s->estudiante->email;
+
+                        \Illuminate\Support\Facades\Mail::to($s->estudiante->email)
+                            ->send(new \App\Mail\StudentAdmittedMail(
+                                $studentName,
+                                $s->estudiante->email,
+                                $s->curso->nombre ?? ($s->curso->title ?? ''),
+                                (string)($s->idcurso ?? $s->curso->idcurso ?? ''),
+                                null,
+                                (env('FRONTEND_URL', env('APP_URL', '')) ?: '') . '/courses/' . ($s->idcurso ?? $s->curso->idcurso ?? '')
+                            ));
+                    }
+                }
+            } catch (\Exception $e) {
+                // no interrumpir el flujo por errores en el envío de correo o actualización del curso
+            }
+
+            DB::commit();
+            return response()->json($s);
+        } catch (\Exception $e) {
+            try { DB::rollBack(); } catch (\Exception $_) {}
+            return response()->json(['message' => 'Error al actualizar solicitud'], 500);
+        }
     }
 
     public function destroy($id) {
