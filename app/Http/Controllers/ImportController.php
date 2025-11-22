@@ -95,6 +95,7 @@ class ImportController extends Controller
             'updated_requests' => [],
             'skipped_rows' => [],
         ];
+        $missingAccounts = [];
 
         DB::beginTransaction();
         try {
@@ -121,6 +122,8 @@ class ImportController extends Controller
                         // No crear cuenta: si el usuario no existe, no podemos crear una solicitud vinculada
                         $skipped++;
                         $report['skipped_rows'][] = ['email' => $email, 'reason' => 'user not found and create_accounts=false'];
+                        // Marcar en missingAccounts para reportarlo claramente en la respuesta
+                        $missingAccounts[] = $email;
                         continue;
                     }
                 } else {
@@ -182,11 +185,31 @@ class ImportController extends Controller
             }
         }
 
-        return response()->json([
+        // Si había cuentas faltantes cuando create_accounts=false, incluirlas
+        // explícitamente en la respuesta y añadir un mensaje claro.
+        $note = null;
+        if (isset($createAccounts) && $createAccounts === false && count($missingAccounts) > 0) {
+            $note = 'Importación completada. No se encontraron cuentas para algunos emails.';
+            // adjuntar lista de emails (acotar tamaño si es muy grande)
+            $maxMissing = 1000;
+            if (count($missingAccounts) > $maxMissing) {
+                $missingSlice = array_slice($missingAccounts, 0, $maxMissing);
+            } else {
+                $missingSlice = $missingAccounts;
+            }
+        }
+
+        $response = [
             'created_users' => $createdUsers,
             'created_requests' => $createdRequests,
             'skipped' => $skipped,
             'report' => $report,
-        ]);
+        ];
+        if ($note) {
+            $response['message'] = $note;
+            $response['missing_accounts'] = $missingSlice ?? [];
+        }
+
+        return response()->json($response);
     }
 }

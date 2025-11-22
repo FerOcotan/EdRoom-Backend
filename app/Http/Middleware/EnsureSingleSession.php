@@ -30,7 +30,7 @@ class EnsureSingleSession
                     ->first();
 
                 if (! $record) {
-                    Log::debug('[EnsureSingleSession] token inválido o expirado');
+                    Log::debug('[EnsureSingleSession] token inválido o expirado o reemplazado por otro dispositivo');
                     return response()->json(['message' => 'Token inválido o expirado'], 401);
                 }
 
@@ -58,14 +58,17 @@ class EnsureSingleSession
                 $sessionId = null;
             }
 
-            if ($sessionId) {
+                if ($sessionId) {
                 $sessionRow = DB::table('sessions')->where('id', $sessionId)->first();
                 if (! $sessionRow) {
                     // sesión borrada -> logout
                     Auth::logout();
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
-                    return redirect('/login')->withErrors(['message' => 'Tu sesión fue cerrada porque inició sesión en otro dispositivo.']);
+                    if ($request->expectsJson()) {
+                        return response()->json(['message' => 'Sesión activa en otro dispositivo'], 401);
+                    }
+                    return redirect('/login')->withErrors(['message' => 'Sesión activa en otro dispositivo']);
                 }
 
                 // Si existe la fila, comprobar que user_id coincide
@@ -73,7 +76,10 @@ class EnsureSingleSession
                     Auth::logout();
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
-                    return redirect('/login')->withErrors(['message' => 'Sesión inválida.']);
+                    if ($request->expectsJson()) {
+                        return response()->json(['message' => 'Sesión activa en otro dispositivo'], 401);
+                    }
+                    return redirect('/login')->withErrors(['message' => 'Sesión activa en otro dispositivo']);
                 }
             }
         }

@@ -34,7 +34,6 @@ class CursoController extends Controller
                       ->orWhere('idestado', '!=', 9);
                 })
                 ->orderBy('idcurso', 'asc')
-                ->limit(10)
                 ->get();
 
             return response()->json($cursos);
@@ -146,7 +145,6 @@ class CursoController extends Controller
                       ->orWhere('idestado', '!=', 9);
                 })
                 ->orderBy('idcurso', 'asc')
-                ->limit(10)
                 ->get();
 
             return response()->json($cursos);
