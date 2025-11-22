@@ -264,6 +264,30 @@ class SoliEstudianteController extends Controller
                 ->whereIn('idestado', $candidates)
                 ->get();
 
+            // Soporte para exportar CSV: si se solicita ?format=csv devolvemos un attachment CSV
+            $format = $request->query('format');
+            if ($format && strtolower($format) === 'csv') {
+                $filename = sprintf("inscritos_curso_%s_%s.csv", $id, date('Ymd_His'));
+                $headers = [
+                    'Content-Type' => 'text/csv',
+                    'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+                ];
+
+                return response()->streamDownload(function() use ($rows) {
+                    $out = fopen('php://output', 'w');
+                        // Cabeceras CSV (nombre, email) — exportar sólo nombre y correo
+                        fputcsv($out, ['nombre', 'email']);
+                        foreach ($rows as $s) {
+                            $email = $s->estudiante->email ?? '';
+                            $n1 = $s->estudiante->nombre ?? $s->estudiante->name ?? '';
+                            $n2 = $s->estudiante->apellido ?? '';
+                            $name = trim($n1 . ' ' . $n2);
+                            fputcsv($out, [$name, $email]);
+                        }
+                    fclose($out);
+                }, $filename, $headers);
+            }
+
             $list = $rows->map(function($s) {
                 $nombre = '';
                 if ($s->estudiante) {

@@ -9,6 +9,7 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\EstadoController;
 use App\Http\Controllers\DailyController;
 use App\Http\Controllers\ClassJoinController; // 👈 IMPORTANTE
+use App\Http\Controllers\ImportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +55,8 @@ Route::middleware([\App\Http\Middleware\CheckBeeartToken::class])->group(functio
 
     // Inscritos (estudiantes aprobados) por curso
     Route::get('cursos/{id}/inscritos', [SoliEstudianteController::class, 'inscritosByCurso']);
+    // Importar estudiantes desde CSV (archivo + default_password)
+    Route::post('cursos/{id}/import', [ImportController::class, 'importStudents']);
     // Cursos aprobados por estudiante (solicitudes aprobadas)
     Route::get('soliestudiantes/estudiante/{id}', [SoliEstudianteController::class, 'cursosByEstudiante']);
 
