@@ -22,7 +22,6 @@ return [
         'http://127.0.0.1:3000',
         'https://edroomfrontend.domcloud.dev',
         'https://main.d389phu9mpm1gu.amplifyapp.com',
-
     ],
 
     'allowed_origins_patterns' => [],
