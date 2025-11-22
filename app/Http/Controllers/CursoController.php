@@ -60,7 +60,7 @@ class CursoController extends Controller
             'nombre' => ['required','string','max:50','unique:curso,nombre'],
             'descripcion' => 'nullable|string|max:300',
             // máximo estudiantes: entero entre 1 y 45
-            'maximoest' => 'required|integer|min:1|max:45',
+            'maximoest' => 'required|integer|min:1|max:100',
             'estuinscritos' => 'nullable|integer',
             'idestado' => 'required|integer',
         ]);
@@ -91,7 +91,7 @@ class CursoController extends Controller
         $validated = $req->validate([
             'nombre' => ['sometimes','required','string','max:50',"unique:curso,nombre,{$id},idcurso"],
             'descripcion' => 'nullable|string|max:300',
-            'maximoest' => ['sometimes','required','integer','min:1','max:45'],
+            'maximoest' => ['sometimes','required','integer','min:1','max:100'],
             'estuinscritos' => 'nullable|integer',
             'idestado' => ['sometimes','required','integer'],
         ]);
